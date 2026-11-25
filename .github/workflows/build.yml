@@ -39,6 +39,11 @@ jobs:
         with:
           repository: seedds/nxnative
           ref: main
+      - name: Free up disk space on macOS runner
+        run: |
+          sudo rm -rf /Applications/Xcode_15*.app /Applications/Xcode_16*.app /Users/runner/Library/Developer/CoreSimulator/Caches || true
+          brew cleanup -s || true
+          df -h
  
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -273,7 +278,7 @@ jobs:
                           f"Output package already exists: {target.name}"
                       )
  
-                  shutil.copy2(source, target)
+                  shutil.move(str(source), str(target))
                   validate_package(target)
  
                   print(
