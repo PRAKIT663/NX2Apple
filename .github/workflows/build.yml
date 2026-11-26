@@ -87,8 +87,7 @@ jobs:
             fi
             if [[ "$url" == *"gofile.io"* ]]; then
           echo "Downloading $(basename "$output") from Gofile..."
-          python -c 'import json,re,sys,urllib.request,subprocess; _,u,o=sys.argv; c=u.strip().rstrip("/").split("/")[-1]; h="https://api."+"gofile.io"; w="https://"+"gofile.io"; t=json.loads(urllib.request.urlopen(urllib.request.Request(h+"/accounts",method="POST",headers={"User-Agent":"Mozilla/5.0"})).read())["data"]["token"]; js=urllib.request.urlopen(urllib.request.Request(w+"/dist/js/config.js",headers={"User-Agent":"Mozilla/5.0"})).read().decode("utf-8","ignore"); m=re.search(r"wt\s*[:=]\s*[\x27\"]([^\x27\"]+)[\x27\"]",js); wt=m.group(1) if m else "4fd6sg89d7s6"; d=json.loads(urllib.request.urlopen(urllib.request.Request(f"{h}/contents/{c}?wt={wt}",headers={"Authorization":f"Bearer {t}","User-Agent":"Mozilla/5.0"})).read())["data"]; ch=d.get("children",{}); fs=[v for v in ch.values() if v.get("type")=="file"] if isinstance(ch,dict) else ([d] if d.get("type")=="file" else []); subprocess.run(["curl","-L","--fail","--retry","3","-H",f"Cookie: accountToken={t}","-o",o,fs.pop(0)["link"]],check=True)' "$url" "$output"
-
+          curl -L --fail --retry 3 -A "Mozilla/5.0" -o "$output" "$url"
             else
             file_id="$(python - "$url" <<'PY'
           import re
