@@ -313,6 +313,8 @@ jobs:
         run: |
           set -euo pipefail
           GAME_DIR="$RUNNER_TEMP/GameFiles"
+          DETECTED_ID=""
+          if [[ -z "${PROFILE_OVERRIDE:-}" ]]; then
  
           DETECTED_ID="$(python - "$GAME_DIR" <<'PY'
           import re
@@ -409,7 +411,7 @@ jobs:
           print(next(iter(candidates)))
           PY
           )"
- 
+          fi
           PROFILE_ID="${PROFILE_OVERRIDE:-$DETECTED_ID}"
           PROFILE_ID="$(echo "$PROFILE_ID" | tr '[:lower:]' '[:upper:]')"
  
