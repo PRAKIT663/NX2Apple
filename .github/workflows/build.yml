@@ -15,7 +15,7 @@ on:
         description: "Optional nxnative profile ID override (leave blank for automatic detection)"
         required: false
         type: string
-        default: ""
+        default: "0100AD80208A8000"
  
 permissions:
   contents: read
@@ -415,7 +415,7 @@ jobs:
           PY
           )"
           fi
-          PROFILE_ID="${PROFILE_OVERRIDE:-$DETECTED_ID}"
+          PROFILE_ID="$(echo "${PROFILE_OVERRIDE:-$DETECTED_ID}" | tr -d '[:space:]')"
           PROFILE_ID="$(echo "$PROFILE_ID" | tr '[:lower:]' '[:upper:]')"
  
           if [[ ! "$PROFILE_ID" =~ ^[0-9A-F]{16}$ ]]; then
