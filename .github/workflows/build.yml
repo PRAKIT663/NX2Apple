@@ -41,7 +41,7 @@ jobs:
           ref: main
       - name: Free up disk space on macOS runner
         run: |
-          sudo rm -rf /Applications/Xcode*.app /Users/runner/Library/Android /Users/runner/Library/Developer/CoreSimulator /usr/local/share/dotnet /Users/runner/.nuget /Users/runner/.cocoapods /Applications/Microsoft\ Edge.app /Applications/Google\ Chrome.app || true
+          sudo rm -rf /Applications/Xcode.app/Contents/Developer/Platforms/Watch*.platform /Applications/Xcode.app/Contents/Developer/Platforms/AppleTV*.platform /Applications/Xcode.app/Contents/Developer/Platforms/XR*.platform /Library/Developer/CoreSimulator /Users/runner/Library/Android /Users/runner/Library/Developer/CoreSimulator /usr/local/share/dotnet /Users/runner/.nuget /Users/runner/.cocoapods /Applications/Microsoft\ Edge.app /Applications/Google\ Chrome.app || true
           brew cleanup -s || true
           df -h
  
