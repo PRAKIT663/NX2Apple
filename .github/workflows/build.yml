@@ -87,23 +87,8 @@ jobs:
             fi
             if [[ "$url" == *"gofile.io"* ]]; then
           echo "Downloading $(basename "$output") from Gofile..."
-          python - "$url" "$output" <<'PY'
-import json, sys, urllib.request, subprocess
-url, out = sys.argv[1].strip(), sys.argv[2]
-cid = url.rstrip("/").split("/")[-1]
-req = urllib.request.Request("https://gofile.io", method="POST", headers={"User-Agent": "Mozilla/5.0"})
-token = json.loads(urllib.request.urlopen(req).read())["data"]["token"]
-req2 = urllib.request.Request(f"https://gofile.io{cid}?wt=4fd6sg89d7s6", headers={"Authorization": f"Bearer {token}", "User-Agent": "Mozilla/5.0"})
-data = json.loads(urllib.request.urlopen(req2).read())["data"]
-children = data.get("children", {})
-files = [v for v in children.values() if v.get("type") == "file"] if isinstance(children, dict) else []
-if not files and data.get("type") == "file":
-    files = [data]
-if not files:
-    raise SystemExit(f"No files found in Gofile link: {url}")
-link = files[0]["link"]
-subprocess.run(["curl", "-L", "--fail", "--retry", "3", "-H", f"Cookie: accountToken={token}", "-o", out, link], check=True)
-PY
+          python -c 'import json,sys,urllib.request,subprocess; u,o=sys.argv[1].strip(),sys.argv[2]; c=u.rstrip("/").split("/")[-1]; t=json.loads(urllib.request.urlopen(urllib.request.Request("https://gofile.io",method="POST",headers={"User-Agent":"Mozilla/5.0"})).read())["data"]["token"]; d=json.loads(urllib.request.urlopen(urllib.request.Request(f"https://gofile.io{c}?wt=4fd6sg89d7s6",headers={"Authorization":f"Bearer {t}","User-Agent":"Mozilla/5.0"})).read())["data"]; ch=d.get("children",{}); fs=[v for v in ch.values() if v.get("type")=="file"] if isinstance(ch,dict) else ([d] if d.get("type")=="file" else []); subprocess.run(["curl","-L","--fail","--retry","3","-H",f"Cookie: accountToken={t}","-o",o,fs[0]["link"]],check=True)' "$url" "$output"
+
             else
             file_id="$(python - "$url" <<'PY'
           import re
