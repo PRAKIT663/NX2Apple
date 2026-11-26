@@ -436,10 +436,7 @@ jobs:
           git clone --depth 1 $(echo aHR0cHM6Ly9naXRodWIuY29tL2lnYXdhNi9wZWFudXRzLW5hdGl2ZS5naXQ= | base64 -d) /tmp/peanuts
           mkdir -p dm/games
           cp -rf /tmp/peanuts/dm/games/0100AD80208A8000 dm/games/
-          cp -rf /tmp/peanuts/peanuts/scripts/* peanuts/scripts/ 2>/dev/null || true
-          cp -rf /tmp/peanuts/dm/*.py dm/ 2>/dev/null || true
-          cp -rf /tmp/peanuts/dm/tools/* dm/tools/ 2>/dev/null || true
-          find . -name "romfs_image.py" -exec sh -c 'grep -q "^ARTIFACTS" "$1" || printf "\nARTIFACTS = frozenset({\"icon_DarkMode.dat\", \"icon_LightMode.dat\", \"control.nacp\", \"legal_info.xml\"})\n" >> "$1"' _ {} \;
+          
           rm -rf /tmp/peanuts
         
           CHAIN_SCRIPT="$(
