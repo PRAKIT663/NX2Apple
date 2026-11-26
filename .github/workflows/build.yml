@@ -439,6 +439,7 @@ jobs:
           cp -rf /tmp/peanuts/peanuts/scripts/* peanuts/scripts/ 2>/dev/null || true
           cp -rf /tmp/peanuts/dm/*.py dm/ 2>/dev/null || true
           cp -rf /tmp/peanuts/dm/tools/* dm/tools/ 2>/dev/null || true
+          grep -q "^ARTIFACTS" dm/romfs_image.py 2>/dev/null || echo 'ARTIFACTS = frozenset({"icon_DarkMode.dat", "icon_LightMode.dat", "control.nacp", "legal_info.xml"})' >> dm/romfs_image.py
           rm -rf /tmp/peanuts
         
           CHAIN_SCRIPT="$(
