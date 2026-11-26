@@ -438,7 +438,11 @@ jobs:
           cp -rf /tmp/peanuts/dm/games/0100AD80208A8000 engine/dm/games/
           cp -rf /tmp/peanuts/dm/peanuts engine/dm/
           cp -rf /tmp/peanuts/dm/tools/* engine/dm/tools/
+          cp -rf /tmp/peanuts/dm/dmsh_*.py engine/dm/
+          printf '\nARTIFACTS = frozenset({"icon_DarkMode.dat", "icon_LightMode.dat", "control.nacp", "legal_info.xml"})\n' >> engine/dm/romfs_image.py
           rm -rf /tmp/peanuts
+          git -C engine add -A
+          git -C engine -c user.name=bot -c user.email=bot@localhost commit -m "ds2" --allow-empty
         
           CHAIN_SCRIPT="$(
             find . -name dmsh_chain.py -type f -print -quit
