@@ -1,0 +1,88 @@
+name: Dragon Ball iPhone preflight
+
+on:
+  push:
+    branches: [experiment/dragon-ball-iphone]
+    paths: ['.github/workflows/dragon-ball-preflight.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: xcode-27
+    timeout-minutes: 10
+    env:
+      DM_GAME: '010035F022078000'
+      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+    steps:
+      - name: Checkout pinned BC fallback engine
+        uses: actions/checkout@v4
+        with:
+          repository: mianmuhammadse/nxnative-nobc
+          ref: 634829096267587aed7a578cdcc2ea72ed77ecd8
+          persist-credentials: false
+
+      - name: Verify Dragon Ball profile and rendering prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=dm/games:dm/tools:dm/gfx/tools python3 - <<'PY'
+          import ast
+          import inspect
+          from pathlib import Path
+
+          import game
+          import romfs
+          import romfs_image
+          import uepak
+
+          profile = game.load()
+          expected = {
+              "package": "v327680",
+              "shader_versions": "v327680",
+              "romfs_marker": "SparkingZERO/Content/Paks/pakchunk0-Switch.pak",
+          }
+          if profile.title_id != 0x010035F022078000:
+              raise SystemExit("Incorrect Dragon Ball title ID")
+          for key, value in expected.items():
+              if profile.get(key) != value:
+                  raise SystemExit(f"Unexpected Dragon Ball profile setting: {key}")
+
+          build = profile.builds()["v327680"]
+          if build["display"] != "2.0.76" or build["main"] != "68edafd68c7bc1a1af50b82aac838018":
+              raise SystemExit("Incorrect Dragon Ball version 2.0.76 build")
+          for name in ("shader_map.tsv", "shader_facts.tsv", "shader_map.tsv.conflicts.tsv"):
+              if not profile.table(name).stat().st_size:
+                  raise SystemExit(f"Missing shader table data: {name}")
+
+          inspect.signature(romfs.reuse_descriptors).bind([])
+          inspect.signature(romfs_image.format_mismatches).bind("fixture", progress=None)
+          inspect.signature(uepak.pak_shader_sources).bind("fixture", None)
+
+          entrypoint = Path("dm/gfx/tools/dmsh_entry.py")
+          shader = ast.parse(entrypoint.read_text(encoding="utf-8"))
+          if not any(isinstance(node, ast.FunctionDef) and node.name == "fs_uint" for node in shader.body):
+              raise SystemExit("Missing integer fragment output used by the virtual texture fix (#1889)")
+          for name in ("nvn_bc2astc.c", "nvn_bcdec.c"):
+              if not (Path("dm/gfx/tex") / name).is_file():
+                  raise SystemExit(f"Missing iPhone 15 BC fallback source: {name}")
+          print("Dragon Ball 2.0.76, ROMFS APIs, integer shader entry point and BC fallback sources passed")
+          PY
+
+          chain=dm/gfx/tools/dmsh_chain.py
+          version="$(python3 "$chain")"
+          grep -Fx "#define DMSH_CHAIN \"$version\"" dm/gfx/nvn/dmsh_chain.h
+          echo "Dragon Ball shader inputs $(python3 "$chain" --inputs)"
+
+          lock=dm/gfx/tools/dmsh_chain.lock
+          for sdk in macosx iphoneos; do
+            expected="$(awk -F '\t' -v key="metal_$sdk" '$1 == key {print $2}' "$lock")"
+            actual="$(xcrun -sdk "$sdk" metal --version | sed -n '1p')"
+            if [[ -z "$expected" || "$actual" != "$expected" ]]; then
+              echo "::error::Metal $sdk does not match the shader lock. Expected: $expected. Found: $actual"
+              exit 1
+            fi
+            echo "Metal $sdk matches: $actual"
+          done
+          echo "Dragon Ball preflight passed without game files or IPA compilation."
