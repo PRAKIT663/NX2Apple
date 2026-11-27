@@ -438,7 +438,8 @@ jobs:
           cp -rf /tmp/peanuts/dm/games/0100AD80208A8000 engine/dm/games/
           cp -rf /tmp/peanuts/dm/peanuts engine/dm/
           cp -rf /tmp/peanuts/dm/tools/* engine/dm/tools/
-                  mkdir -p engine/dm/third_party engine/scripts
+          mkdir -p engine/dm/gfx/tools engine/dm/third_party engine/scripts
+          cp -rf /tmp/peanuts/dm/gfx/tools/* engine/dm/gfx/tools/
           cp -rf /tmp/peanuts/dm/third_party/ooz engine/dm/third_party/
                   find /tmp/peanuts \( -name "uepak.py" -o -name "shader_split.py" \) -exec cp -f {} engine/scripts/ \;
           printf '\nARTIFACTS = frozenset({"icon_DarkMode.dat", "icon_LightMode.dat", "control.nacp", "legal_info.xml"})\n' >> engine/dm/romfs_image.py
