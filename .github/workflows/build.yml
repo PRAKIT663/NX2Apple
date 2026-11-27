@@ -438,7 +438,7 @@ jobs:
           cp -rf /tmp/peanuts/dm/games/0100AD80208A8000 engine/dm/games/
           cp -rf /tmp/peanuts/dm/peanuts engine/dm/
           cp -rf /tmp/peanuts/dm/tools/* engine/dm/tools/
-          mkdir -p engine/dm/third_party
+                  mkdir -p engine/dm/third_party engine/scripts
           cp -rf /tmp/peanuts/dm/third_party/ooz engine/dm/third_party/
           cp -rf /tmp/peanuts/scripts/uepak.py /tmp/peanuts/scripts/shader_split.py engine/scripts/
           printf '\nARTIFACTS = frozenset({"icon_DarkMode.dat", "icon_LightMode.dat", "control.nacp", "legal_info.xml"})\n' >> engine/dm/romfs_image.py
