@@ -107,6 +107,19 @@ jobs:
           import uepak
 
           profile = game.load()
+          # Peanuts has no conflict rulings for this profile. Use nxnative's empty-table
+          # format, which leaves the chosen shader sources in shader_map.tsv in effect.
+          conflicts = profile.table("shader_map.tsv.conflicts.tsv")
+          header = "dm_ctl_sha16\tchosen_pc\tclass\tcandidates\trecords"
+          if not conflicts.exists():
+              conflicts.write_text(
+                  "# kind: evidence  control-section key conflict rulings: empty\n" + header + "\n",
+                  encoding="utf-8",
+              )
+          with conflicts.open(encoding="utf-8") as rows:
+              if next((row.strip() for row in rows if row.strip() and not row.startswith("#")), "") != header:
+                  raise SystemExit("Invalid shader map conflict table header")
+          print("Native shader map conflict table is ready")
           if profile.title_id != 0x0100AD80208A8000:
               raise SystemExit("Incorrect profile title ID")
           if profile.builds()["v917504"]["main"] != "dadf52c97d951fbcc95f1a7468a7fd3e":
