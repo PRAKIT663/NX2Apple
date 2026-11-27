@@ -444,6 +444,8 @@ jobs:
           rm -rf /tmp/peanuts
           sh dm/third_party/ooz/build.sh /tmp/unoodle clang++
           printf '\nARTIFACTS = frozenset({"icon_DarkMode.dat", "icon_LightMode.dat", "control.nacp", "legal_info.xml"})\n' >> dm/tools/romfs_image.py
+          printf '\ndef reuse_descriptors(*a, **kw): return None\n' >> dm/tools/romfs.py
+
           CHAIN_SCRIPT="$(
             find . -name dmsh_chain.py -type f -print -quit
           )"
