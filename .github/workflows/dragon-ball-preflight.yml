@@ -13,6 +13,7 @@ jobs:
     runs-on: xcode-27
     timeout-minutes: 10
     env:
+      EXPECTED_UPDATE_DISPLAY: "2.0.74"
       DM_GAME: '010035F022078000'
       DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
     steps:
@@ -30,6 +31,7 @@ jobs:
           PYTHONPATH=dm/games:dm/tools:dm/gfx/tools python3 - <<'PY'
           import ast
           import inspect
+          import os
           from pathlib import Path
 
           import game
@@ -57,6 +59,24 @@ jobs:
               if not profile.table(name).stat().st_size:
                   raise SystemExit(f"Missing shader table data: {name}")
 
+          # Exercise the engine's selection rule with a synthetic CNMT version.
+          # The real CNMT version must be read from the user's update before building.
+          builder = ast.parse(Path("scripts/build_ipa_from_nsp.py").read_text(encoding="utf-8"))
+          rule = next(node for node in builder.body
+                      if isinstance(node, ast.FunctionDef) and node.name == "profile_derivation_reason")
+          namespace = {}
+          exec(compile(ast.Module(body=[rule], type_ignores=[]), "<version selection>", "exec"), namespace)
+          requires_derivation = namespace["profile_derivation_reason"]
+          registered = profile.get("package")
+          synthetic_update = "v65536000"
+          if synthetic_update in profile.builds():
+              raise SystemExit("The unregistered-update fixture is unexpectedly registered")
+          if requires_derivation(profile, registered, (registered,)):
+              raise SystemExit("Registered update unexpectedly requires shader derivation")
+          if not requires_derivation(profile, synthetic_update, (synthetic_update,)):
+              raise SystemExit("An unregistered update must derive its own shader tables")
+          print(f"Target update {os.environ['EXPECTED_UPDATE_DISPLAY']}: unregistered-version selection passed with synthetic metadata")
+
           inspect.signature(romfs.reuse_descriptors).bind([])
           inspect.signature(romfs_image.format_mismatches).bind("fixture", progress=None)
           inspect.signature(uepak.pak_shader_sources).bind("fixture", None)
@@ -68,7 +88,7 @@ jobs:
           for name in ("nvn_bc2astc.c", "nvn_bcdec.c"):
               if not (Path("dm/gfx/tex") / name).is_file():
                   raise SystemExit(f"Missing iPhone 15 BC fallback source: {name}")
-          print("Dragon Ball 2.0.76 with 60 FPS target, ROMFS APIs, integer shader entry point and BC fallback sources passed")
+          print("Dragon Ball reference profile 2.0.76 with 60 FPS target, ROMFS APIs, integer shader entry point and BC fallback sources passed")
           PY
 
           chain=dm/gfx/tools/dmsh_chain.py
