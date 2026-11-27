@@ -30,7 +30,7 @@ permissions:
 jobs:
   build:
     if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/experiment/demon-slayer-2'
-    runs-on: ${{ github.ref == 'refs/heads/experiment/demon-slayer-2' && (github.event_name == 'push' || inputs.preflight_only) && 'ubuntu-latest' || 'xcode-27' }}
+    runs-on: xcode-27
     timeout-minutes: 360
 
     steps:
@@ -113,6 +113,36 @@ jobs:
           grep -Fx "#define DMSH_CHAIN \"$version\"" dm/gfx/nvn/dmsh_chain.h
           echo "Demon Slayer 2 shader inputs $(python3 "$chain" --inputs)"
           echo "Preflight passed without game downloads or compilation."
+
+      - name: Select and verify Demon Slayer 2 Metal compiler
+        if: github.ref == 'refs/heads/experiment/demon-slayer-2'
+        shell: bash
+        run: |
+          set -euo pipefail
+          lock=dm/gfx/tools/dmsh_chain.lock
+          expected_mac="$(awk -F '\t' '$1 == "metal_macosx" {print $2}' "$lock")"
+          expected_ios="$(awk -F '\t' '$1 == "metal_iphoneos" {print $2}' "$lock")"
+          test -n "$expected_mac" && test -n "$expected_ios"
+
+          metal_version() {
+            DEVELOPER_DIR="$1" xcrun -sdk "$2" metal --version | sed -n '1p'
+          }
+
+          shopt -s nullglob
+          for developer in /Applications/Xcode_27.2.app/Contents/Developer /Applications/Xcode*.app/Contents/Developer; do
+            [[ -d "$developer" ]] || continue
+            actual_mac="$(metal_version "$developer" macosx)" || continue
+            actual_ios="$(metal_version "$developer" iphoneos)" || continue
+            echo "$developer: macOS $actual_mac, iOS $actual_ios"
+            if [[ "$actual_mac" == "$expected_mac" && "$actual_ios" == "$expected_ios" ]]; then
+              echo "DEVELOPER_DIR=$developer" >> "$GITHUB_ENV"
+              echo "Metal compiler matches the shader lock for macOS and iOS."
+              exit 0
+            fi
+          done
+
+          echo "::error::No installed Xcode matches the shader lock (macOS: $expected_mac, iOS: $expected_ios)."
+          exit 1
 
       - name: Checkout BC fallback version
         if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/experiment/demon-slayer-2' && inputs.device == 'iPhone 15 or older (BC fallback)'
