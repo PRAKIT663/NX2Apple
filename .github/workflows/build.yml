@@ -437,7 +437,7 @@ jobs:
           mkdir -p dm/games dm/tools dm/gfx/tools dm/third_party scripts
           cp -rf /tmp/peanuts/dm/games/0100AD80208A8000 dm/games/
           cp -rf /tmp/peanuts/dm/peanuts dm/
-          cp -rf /tmp/peanuts/dm/tools/* dm/tools/
+          cp -rn /tmp/peanuts/dm/tools/* dm/tools/
           cp -rf /tmp/peanuts/dm/gfx/tools/* dm/gfx/tools/
           cp -rf /tmp/peanuts/dm/third_party/ooz dm/third_party/
           find /tmp/peanuts \( -name "uepak.py" -o -name "shader_split.py" \) -exec cp -f {} scripts/ \;
