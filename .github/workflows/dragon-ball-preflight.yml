@@ -39,6 +39,7 @@ jobs:
 
           profile = game.load()
           expected = {
+              "fps_target": "60",
               "package": "v327680",
               "shader_versions": "v327680",
               "romfs_marker": "SparkingZERO/Content/Paks/pakchunk0-Switch.pak",
@@ -67,7 +68,7 @@ jobs:
           for name in ("nvn_bc2astc.c", "nvn_bcdec.c"):
               if not (Path("dm/gfx/tex") / name).is_file():
                   raise SystemExit(f"Missing iPhone 15 BC fallback source: {name}")
-          print("Dragon Ball 2.0.76, ROMFS APIs, integer shader entry point and BC fallback sources passed")
+          print("Dragon Ball 2.0.76 with 60 FPS target, ROMFS APIs, integer shader entry point and BC fallback sources passed")
           PY
 
           chain=dm/gfx/tools/dmsh_chain.py
