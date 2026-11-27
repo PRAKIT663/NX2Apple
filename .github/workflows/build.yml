@@ -438,9 +438,12 @@ jobs:
           cp -rf /tmp/peanuts/dm/games/0100AD80208A8000 engine/dm/games/
           cp -rf /tmp/peanuts/dm/peanuts engine/dm/
           cp -rf /tmp/peanuts/dm/tools/* engine/dm/tools/
-          
+          mkdir -p engine/dm/third_party
+          cp -rf /tmp/peanuts/dm/third_party/ooz engine/dm/third_party/
+          cp -rf /tmp/peanuts/scripts/uepak.py /tmp/peanuts/scripts/shader_split.py engine/scripts/
           printf '\nARTIFACTS = frozenset({"icon_DarkMode.dat", "icon_LightMode.dat", "control.nacp", "legal_info.xml"})\n' >> engine/dm/romfs_image.py
           rm -rf /tmp/peanuts
+                  sh engine/dm/third_party/ooz/build.sh /tmp/unoodle clang++
           git -C engine add -A
           git -C engine -c user.name=bot -c user.email=bot@localhost commit -m "ds2" --allow-empty
         
@@ -463,7 +466,8 @@ jobs:
           WORK="$RUNNER_TEMP/nxnative"
           GAME_DIR="$RUNNER_TEMP/GameFiles"
           OUTPUT="$RUNNER_TEMP/NxNative.ipa"
- 
+          export DM_OODLE_OOZ="/tmp/unoodle"
+          export DM_UE_DECODE=""
           python scripts/build_ipa_from_nsp.py \
             "$GAME_DIR" \
             -k "$WORK/prod.keys" \
