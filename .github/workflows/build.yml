@@ -30,7 +30,7 @@ jobs:
         if: inputs.device == 'iPhone 15 or older (BC fallback)'
         uses: actions/checkout@v4
         with:
-          repository: mianmuhammadse/nxnative
+          repository: mianmuhammadse/nxnative-nobc
           ref: no-bc
 
       - name: Checkout standard nxnative version
@@ -364,37 +364,18 @@ jobs:
           mkdir -p dm/games dm/tools dm/gfx/tools dm/third_party scripts
           cp -rf "$GAME_SRC" dm/games/
           cp -rf "$PEANUTS_TMP/dm/peanuts" dm/
-          cp -rf "$PEANUTS_TMP/dm/tools/." dm/tools/
-          cp -rf "$PEANUTS_TMP/dm/gfx/tools/." dm/gfx/tools/
+          # Preserve native tools; only import missing Peanuts helpers.
+          cp -Rn "$PEANUTS_TMP/dm/tools/." dm/tools/
+          cp -Rn "$PEANUTS_TMP/dm/gfx/tools/." dm/gfx/tools/
           cp -rf "$PEANUTS_TMP/dm/third_party/ooz" dm/third_party/
           find "$PEANUTS_TMP" \( -name "uepak.py" -o -name "shader_split.py" \) -exec cp -f {} scripts/ \;
 
           rm -rf "$PEANUTS_TMP"
 
+          python -c 'import sys; sys.path.insert(0, "dm/tools"); import romfs_image, romfs; assert callable(romfs_image.format_mismatches); assert hasattr(romfs_image, "ARTIFACTS"); assert callable(romfs.reuse_descriptors); print("ROMFS API preflight: PASSED")'
+
           sh dm/third_party/ooz/build.sh /tmp/unoodle clang++
 
-          python - <<'PY'
-          from pathlib import Path
-
-          patches = {
-              Path("dm/tools/romfs_image.py"): (
-                  'ARTIFACTS = frozenset({"icon_DarkMode.dat", "icon_LightMode.dat", "control.nacp", "legal_info.xml"})'
-              ),
-              Path("dm/tools/romfs.py"): (
-                  "def reuse_descriptors(*a, **kw): return None"
-              ),
-          }
-
-          for path, line in patches.items():
-              if not path.exists():
-                  raise SystemExit(f"Target file for patch not found: {path}")
-              content = path.read_text(encoding="utf-8")
-              if line not in content:
-                  path.write_text(content.rstrip() + "\n\n" + line + "\n", encoding="utf-8")
-                  print(f"Patched {path}")
-              else:
-                  print(f"Already patched {path}")
-          PY
 
           CHAIN_SCRIPT="$(find . -name dmsh_chain.py -type f -print -quit)"
           if [[ -z "$CHAIN_SCRIPT" ]]; then
