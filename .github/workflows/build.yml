@@ -1,6 +1,9 @@
 name: NxNative - Generic IPA Builder
 
 on:
+  push:
+    branches: [experiment/demon-slayer-2]
+    paths: ['.github/workflows/build.yml']
   workflow_dispatch:
     inputs:
       device:
@@ -16,31 +19,117 @@ on:
         required: false
         type: string
         default: "0100AD80208A8000"
+      preflight_only:
+        description: "On the Demon Slayer 2 experiment branch, validate source only"
+        type: boolean
+        default: true
 
 permissions:
   contents: read
 
 jobs:
   build:
-    runs-on: xcode-27
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/experiment/demon-slayer-2'
+    runs-on: ${{ github.ref == 'refs/heads/experiment/demon-slayer-2' && (github.event_name == 'push' || inputs.preflight_only) && 'ubuntu-latest' || 'xcode-27' }}
     timeout-minutes: 360
 
     steps:
+      - name: Validate Demon Slayer 2 dispatch
+        if: github.ref == 'refs/heads/experiment/demon-slayer-2' && github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          DEVICE: ${{ inputs.device }}
+          PROFILE: ${{ inputs.profile_id }}
+        run: |
+          set -euo pipefail
+          if [[ "$DEVICE" != 'iPhone 15 or older (BC fallback)' || "$PROFILE" != '0100AD80208A8000' ]]; then
+            echo "::error::This experiment requires the BC fallback device option and profile 0100AD80208A8000."
+            exit 1
+          fi
+
+      - name: Checkout pinned Demon Slayer 2 BC fallback engine
+        if: github.ref == 'refs/heads/experiment/demon-slayer-2'
+        uses: actions/checkout@v4
+        with:
+          repository: mianmuhammadse/nxnative-nobc
+          ref: 634829096267587aed7a578cdcc2ea72ed77ecd8
+          persist-credentials: false
+
+      - name: Checkout pinned Demon Slayer 2 profile
+        if: github.ref == 'refs/heads/experiment/demon-slayer-2'
+        uses: actions/checkout@v4
+        with:
+          repository: igawa6/peanuts-native
+          ref: dbbdb852e5fed02aeec6bdaba458f96e6b9c4db1
+          path: .peanuts-profile
+          sparse-checkout: dm/games/0100AD80208A8000
+          persist-credentials: false
+
+      - name: Preflight Demon Slayer 2 profile, ROMFS and shaders
+        if: github.ref == 'refs/heads/experiment/demon-slayer-2'
+        shell: bash
+        env:
+          DM_GAME: '0100AD80208A8000'
+        run: |
+          set -euo pipefail
+          profile_dir="dm/games/$DM_GAME"
+          test ! -e "$profile_dir"
+          cp -R ".peanuts-profile/$profile_dir" "$profile_dir"
+          for table in shader_map shader_facts shader_pairs; do
+            test -s "$profile_dir/$table.tsv"
+          done
+
+          PYTHONPATH=dm/games:dm/tools:dm/gfx/tools python3 - <<'PY'
+          import inspect
+          from pathlib import Path
+
+          import game
+          import romfs
+          import romfs_image
+          import uepak
+
+          profile = game.load()
+          if profile.title_id != 0x0100AD80208A8000:
+              raise SystemExit("Incorrect profile title ID")
+          if profile.builds()["v917504"]["main"] != "dadf52c97d951fbcc95f1a7468a7fd3e":
+              raise SystemExit("Incorrect build ID for Demon Slayer 2 version 1.80")
+          if profile.get("romfs_marker") != "APK2/Content/Paks/pakchunk0-Switch.utoc":
+              raise SystemExit("Incorrect Unreal IoStore RomFS marker")
+          if "v917504" not in profile.words("shader_versions"):
+              raise SystemExit("Missing version 1.80 shader profile")
+          inspect.signature(romfs.reuse_descriptors).bind([])
+          inspect.signature(romfs_image.format_mismatches).bind("fixture", progress=None)
+          if b".listing" not in romfs_image.ARTIFACTS:
+              raise SystemExit("Missing ROMFS image artifact filter")
+          inspect.signature(uepak.pak_shader_sources).bind("fixture", None)
+          for source in ("nvn_bc2astc.c", "nvn_bcdec.c"):
+              if not (Path("dm/gfx/tex") / source).is_file():
+                  raise SystemExit(f"Missing BC fallback source: {source}")
+          print("Demon Slayer 2 v1.80 profile, ROMFS APIs, Unreal shader entry point and BC fallback sources passed")
+          PY
+
+          chain=dm/gfx/tools/dmsh_chain.py
+          version="$(python3 "$chain")"
+          grep -Fx "#define DMSH_CHAIN \"$version\"" dm/gfx/nvn/dmsh_chain.h
+          echo "Demon Slayer 2 shader inputs $(python3 "$chain" --inputs)"
+          echo "Preflight passed without game downloads or compilation."
+
       - name: Checkout BC fallback version
-        if: inputs.device == 'iPhone 15 or older (BC fallback)'
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/experiment/demon-slayer-2' && inputs.device == 'iPhone 15 or older (BC fallback)'
         uses: actions/checkout@v4
         with:
           repository: mianmuhammadse/nxnative
           ref: no-bc
 
       - name: Checkout standard nxnative version
-        if: inputs.device == 'iPhone 15 Pro/Pro Max or newer (standard)'
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/experiment/demon-slayer-2' && inputs.device == 'iPhone 15 Pro/Pro Max or newer (standard)'
         uses: actions/checkout@v4
         with:
           repository: seedds/nxnative
           ref: main
 
       - name: Free up disk space on macOS runner
+        if: github.event_name == 'workflow_dispatch' && (github.ref != 'refs/heads/experiment/demon-slayer-2' || !inputs.preflight_only)
         run: |
           sudo rm -rf \
             /Applications/Xcode.app/Contents/Developer/Platforms/Watch*.platform \
@@ -58,16 +147,19 @@ jobs:
           df -h
 
       - name: Set up Python
+        if: github.event_name == 'workflow_dispatch' && (github.ref != 'refs/heads/experiment/demon-slayer-2' || !inputs.preflight_only)
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
       - name: Set up .NET SDK
+        if: github.event_name == 'workflow_dispatch' && (github.ref != 'refs/heads/experiment/demon-slayer-2' || !inputs.preflight_only)
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
 
       - name: Install dependencies
+        if: github.event_name == 'workflow_dispatch' && (github.ref != 'refs/heads/experiment/demon-slayer-2' || !inputs.preflight_only)
         shell: bash
         run: |
           set -euo pipefail
@@ -76,6 +168,7 @@ jobs:
           python -m pip install lz4 capstone fonttools backports.zstd gdown zbic
 
       - name: Download game files and keys
+        if: github.event_name == 'workflow_dispatch' && (github.ref != 'refs/heads/experiment/demon-slayer-2' || !inputs.preflight_only)
         env:
           GAME_URL: ${{ secrets.Game_URL }}
           UPDATE_URL: ${{ secrets.Update_URL }}
@@ -157,6 +250,7 @@ jobs:
           chmod 600 "$WORK/prod.keys"
 
       - name: Extract RAR archives or accept direct game packages
+        if: github.event_name == 'workflow_dispatch' && (github.ref != 'refs/heads/experiment/demon-slayer-2' || !inputs.preflight_only)
         shell: bash
         run: |
           set -euo pipefail
@@ -260,6 +354,7 @@ jobs:
           test -s "$WORK/prod.keys"
 
       - name: Detect game title ID and select shader profile
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/experiment/demon-slayer-2'
         env:
           PROFILE_OVERRIDE: ${{ inputs.profile_id }}
         shell: bash
@@ -344,6 +439,7 @@ jobs:
           echo "DETECTED_TITLE_ID=$DETECTED_ID" >> "$GITHUB_ENV"
 
       - name: Sync Peanuts game profile, tools, and patches
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/experiment/demon-slayer-2'
         env:
           PEANUTS_REPO_URL: "https://github.com/igawa6/peanuts-native.git"
         shell: bash
@@ -405,6 +501,9 @@ jobs:
           python "$CHAIN_SCRIPT" --header
 
       - name: Build unsigned IPA
+        if: github.event_name == 'workflow_dispatch' && (github.ref != 'refs/heads/experiment/demon-slayer-2' || !inputs.preflight_only)
+        env:
+          EXPERIMENT: ${{ github.ref == 'refs/heads/experiment/demon-slayer-2' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -412,14 +511,19 @@ jobs:
           GAME_DIR="$RUNNER_TEMP/GameFiles"
           OUTPUT="$RUNNER_TEMP/NxNative.ipa"
 
-          export DM_OODLE_OOZ="/tmp/unoodle"
-          export DM_UE_DECODE=""
+          if [[ "$EXPERIMENT" == 'true' ]]; then
+            build_args=(--title-id 0100AD80208A8000 --package v917504)
+          else
+            export DM_OODLE_OOZ="/tmp/unoodle"
+            export DM_UE_DECODE=""
+            build_args=(--allow-other-metal)
+          fi
 
           python scripts/build_ipa_from_nsp.py \
             "$GAME_DIR" \
             -k "$WORK/prod.keys" \
             -o "$OUTPUT" \
-            --allow-other-metal
+            "${build_args[@]}"
 
           if [[ ! -s "$OUTPUT" ]]; then
             echo "::error::IPA build did not produce an output file."
@@ -430,7 +534,7 @@ jobs:
           ls -lh "$OUTPUT"
 
       - name: Upload IPA
-        if: success()
+        if: success() && github.event_name == 'workflow_dispatch' && (github.ref != 'refs/heads/experiment/demon-slayer-2' || !inputs.preflight_only)
         uses: actions/upload-artifact@v4
         with:
           name: NxNative-IPA-${{ inputs.device == 'iPhone 15 or older (BC fallback)' && 'BC-Fallback' || 'Standard' }}
@@ -439,7 +543,7 @@ jobs:
           retention-days: 7
 
       - name: Upload build logs if available
-        if: always()
+        if: always() && github.event_name == 'workflow_dispatch' && (github.ref != 'refs/heads/experiment/demon-slayer-2' || !inputs.preflight_only)
         uses: actions/upload-artifact@v4
         with:
           name: NxNative-Build-Logs
@@ -450,7 +554,7 @@ jobs:
           retention-days: 7
 
       - name: Clean up downloaded files and keys
-        if: always()
+        if: always() && github.event_name == 'workflow_dispatch' && (github.ref != 'refs/heads/experiment/demon-slayer-2' || !inputs.preflight_only)
         shell: bash
         run: |
           rm -rf \
