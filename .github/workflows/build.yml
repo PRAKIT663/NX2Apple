@@ -72,6 +72,32 @@ jobs:
           DM_GAME: '0100AD80208A8000'
         run: |
           set -euo pipefail
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+
+          script = Path("scripts/build_ipa_from_nsp.py")
+          source = script.read_text(encoding="utf-8")
+          guard = '    if not prepare_xcode and free_gb(out_ipa.parent) < 5:'
+          if source.count(guard) != 1:
+              raise SystemExit("Unexpected native IPA packaging entry point; review the pinned engine")
+          cleanup = """    if not prepare_xcode and os.environ.get('NX_DEMON_SLAYER_CLEAN_PACK_INPUTS') == '1':
+                  staged = (Path(os.environ['RUNNER_TEMP']) / 'GameFiles').resolve()
+                  if nsp_dir != staged or app != 0x0100AD80208A8000 or work != staged / '0100AD80208A8000_build':
+                      raise BuildError('Refusing to clean inputs outside the Demon Slayer CI staging folder')
+                  before = free_gb(out_ipa.parent)
+                  for path in staged.iterdir():
+                      if path.is_file() and path.suffix.lower() in {'.nsp', '.xci', '.nsz', '.xcz'}:
+                          path.unlink()
+                  for path in (sh / 'pkg', sh / 'cache', work / 'nsp'):
+                      rmtree(path)
+                  say(f'Packaging volume free space after releasing build intermediates: {before:.1f} -> {free_gb(out_ipa.parent):.1f} GB')
+          """
+          updated = source.replace(guard, cleanup + guard)
+          ast.parse(updated, filename=str(script))
+          script.write_text(updated, encoding="utf-8")
+          PY
+
           profile_dir="dm/games/$DM_GAME"
           test ! -e "$profile_dir"
           cp -R ".peanuts-profile/$profile_dir" "$profile_dir"
@@ -625,6 +651,7 @@ jobs:
           OUTPUT="$RUNNER_TEMP/NxNative.ipa"
 
           if [[ "$EXPERIMENT" == 'true' ]]; then
+            export NX_DEMON_SLAYER_CLEAN_PACK_INPUTS=1
             build_args=(--title-id 0100AD80208A8000 --package v917504)
           else
             export DM_OODLE_OOZ="/tmp/unoodle"
