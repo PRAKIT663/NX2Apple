@@ -79,8 +79,26 @@ jobs:
             test -s "$profile_dir/$table.tsv"
           done
 
+          # Keep the native ROMFS and shader pipeline. Apply Peanuts' asset-only pak classification.
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("dm/gfx/tools/uepak.py")
+          source = path.read_text(encoding="utf-8")
+          old = "    return inline, not inline\n"
+          if source.count(old) != 1:
+              raise SystemExit("Unexpected native Unreal pak classifier; review the pinned engine")
+          path.write_text(
+              source.replace(old, "    return inline, b'.ushaderbytecode\\0' in d\n"),
+              encoding="utf-8",
+          )
+          PY
+
           PYTHONPATH=dm/games:dm/tools:dm/gfx/tools python3 - <<'PY'
           import inspect
+          import struct
+          from tempfile import TemporaryDirectory
+          from unittest.mock import patch
           from pathlib import Path
 
           import game
@@ -102,6 +120,25 @@ jobs:
           if b".listing" not in romfs_image.ARTIFACTS:
               raise SystemExit("Missing ROMFS image artifact filter")
           inspect.signature(uepak.pak_shader_sources).bind("fixture", None)
+          with TemporaryDirectory() as tmp:
+              folder = Path(tmp)
+              for name, directory in (
+                  ("movie", b"Intro.bk2\0"),
+                  ("shared", b"ShaderArchive-Game.ushaderbytecode\0"),
+                  ("inline", b"GlobalShaderCache-Switch.bin\0"),
+              ):
+                  index = struct.pack("<iiQiiQQ", 0, 1, 0, 0, 1, 40, len(directory))
+                  footer = bytearray(0xCC + 21)
+                  struct.pack_into("<IIQQ", footer, 21, uepak.PAK_MAGIC, 11, 0, len(index))
+                  (folder / f"{name}.pak").write_bytes(index + directory + footer)
+              with patch.object(uepak, "inline_in_containers", return_value=True):
+                  shared = uepak.unreal_paks(tmp, inline=False)
+                  inline = uepak.unreal_paks(tmp, inline=True)
+              if [Path(p).stem for p in shared] != ["shared"]:
+                  raise SystemExit(f"Incorrect shared shader pak selection: {shared}")
+              if [Path(p).stem for p in inline] != ["inline"]:
+                  raise SystemExit(f"Incorrect inline IoStore pak selection: {inline}")
+              print("Unreal pak regression passed: movie excluded, shared and inline routed")
           for source in ("nvn_bc2astc.c", "nvn_bcdec.c"):
               if not (Path("dm/gfx/tex") / source).is_file():
                   raise SystemExit(f"Missing BC fallback source: {source}")
