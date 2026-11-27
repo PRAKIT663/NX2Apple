@@ -159,8 +159,28 @@ jobs:
           ref: main
 
       - name: Free up disk space on macOS runner
-        if: github.event_name == 'workflow_dispatch' && (github.ref != 'refs/heads/experiment/demon-slayer-2' || !inputs.preflight_only)
+        if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/experiment/demon-slayer-2'
+        shell: bash
+        env:
+          EXPERIMENT: ${{ github.ref == 'refs/heads/experiment/demon-slayer-2' }}
         run: |
+          if [[ "$EXPERIMENT" == 'true' ]]; then
+            set -e
+            df -h "$RUNNER_TEMP"
+            selected="$(cd "$DEVELOPER_DIR" && pwd -P)"
+            shopt -s nullglob
+            for app in /Applications/Xcode*.app; do
+              [[ -d "$app/Contents/Developer" && ! -L "$app" ]] || continue
+              developer="$(cd "$app/Contents/Developer" && pwd -P)"
+              [[ "$developer" != "$selected" ]] || continue
+              echo "Removing unused runner toolchain $(basename "$app")"
+              sudo rm -rf -- "$app"
+            done
+            for platform in "$selected"/Platforms/{Watch,AppleTV,XR}*.platform; do
+              sudo rm -rf -- "$platform"
+            done
+          fi
+
           sudo rm -rf \
             /Applications/Xcode.app/Contents/Developer/Platforms/Watch*.platform \
             /Applications/Xcode.app/Contents/Developer/Platforms/AppleTV*.platform \
@@ -174,7 +194,7 @@ jobs:
             "/Applications/Microsoft Edge.app" \
             "/Applications/Google Chrome.app" || true
           brew cleanup -s || true
-          df -h
+          df -h "$RUNNER_TEMP"
 
       - name: Set up Python
         if: github.event_name == 'workflow_dispatch' && (github.ref != 'refs/heads/experiment/demon-slayer-2' || !inputs.preflight_only)
@@ -282,6 +302,8 @@ jobs:
       - name: Extract RAR archives or accept direct game packages
         if: github.event_name == 'workflow_dispatch' && (github.ref != 'refs/heads/experiment/demon-slayer-2' || !inputs.preflight_only)
         shell: bash
+        env:
+          EXPERIMENT: ${{ github.ref == 'refs/heads/experiment/demon-slayer-2' }}
         run: |
           set -euo pipefail
           WORK="$RUNNER_TEMP/nxnative"
@@ -289,6 +311,7 @@ jobs:
           mkdir -p "$GAME_DIR"
 
           python - "$WORK" "$GAME_DIR" <<'PY'
+          import os
           import shutil
           import subprocess
           import sys
@@ -296,6 +319,7 @@ jobs:
 
           work = Path(sys.argv[1])
           game_dir = Path(sys.argv[2])
+          reclaim_space = os.environ['EXPERIMENT'] == 'true'
           package_extensions = {".nsp", ".xci", ".nsz", ".xcz"}
           rar_signatures = (b"Rar!\x1a\x07\x00", b"Rar!\x1a\x07\x01\x00")
 
@@ -317,7 +341,10 @@ jobs:
                   raise SystemExit("Duplicate package filename: " + source.name)
 
               validate_package(source)
-              shutil.copy2(source, target)
+              if reclaim_space:
+                  shutil.move(source, target)
+              else:
+                  shutil.copy2(source, target)
               print(f"Added {label}: {target.name} ({target.stat().st_size:,} bytes)")
 
           def process_download(label: str):
@@ -347,6 +374,9 @@ jobs:
 
                   for package in packages:
                       add_package(package, label)
+                  if reclaim_space:
+                      shutil.rmtree(extract_dir)
+                      source.unlink()
               else:
                   print(f"{label}: not a RAR archive; checking as a direct package.")
                   if signature[:4] == b"PFS0":
@@ -382,6 +412,9 @@ jobs:
           PY
 
           test -s "$WORK/prod.keys"
+          if [[ "$EXPERIMENT" == 'true' ]]; then
+            df -h "$GAME_DIR"
+          fi
 
       - name: Detect game title ID and select shader profile
         if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/experiment/demon-slayer-2'
