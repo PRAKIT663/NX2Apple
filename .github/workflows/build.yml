@@ -55,6 +55,18 @@ jobs:
           ref: 634829096267587aed7a578cdcc2ea72ed77ecd8
           persist-credentials: false
 
+      - name: Checkout Demon Slayer 2 activation integration
+        if: github.ref == 'refs/heads/experiment/demon-slayer-2'
+        uses: actions/checkout@v4
+        with:
+          path: .activation-integration
+          sparse-checkout: tools/activation
+          persist-credentials: false
+
+      - name: Apply Demon Slayer 2 activation gate
+        if: github.ref == 'refs/heads/experiment/demon-slayer-2'
+        run: python3 .activation-integration/tools/activation/apply_ios_gate.py .
+
       - name: Checkout pinned Demon Slayer 2 profile
         if: github.ref == 'refs/heads/experiment/demon-slayer-2'
         uses: actions/checkout@v4
