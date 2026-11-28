@@ -9,7 +9,7 @@ from tempfile import TemporaryDirectory
 from urllib.parse import urlsplit
 
 TITLE = 0x010035F022078000
-DLC_COUNT = 12
+DLC_COUNTS = (6, 12)
 EXTENSIONS = {".nsp", ".nsz", ".xci", ".xcz"}
 
 
@@ -51,18 +51,19 @@ def stage(label, work, packages):
         wanted = [source]
     else:
         raise SystemExit(f"{label} is not a supported package or archive. Use a file download URL, not a share page.")
-    expected = DLC_COUNT if label == "DLC" else 1
-    if len(wanted) != expected:
-        raise SystemExit(f"{label}: expected {expected} package(s), got {len(wanted)}")
+    expected = DLC_COUNTS if label == "DLC" else (1,)
+    if len(wanted) not in expected:
+        sizes = " or ".join(map(str, expected))
+        raise SystemExit(f"{label}: expected {sizes} package(s), got {len(wanted)}")
+    return len(wanted)
 
 
 def stage_dlc(work, packages):
     links = [line.strip() for line in os.environ.get("DLC_URL", "").splitlines() if line.strip()]
     if len(links) <= 1:
-        stage("DLC", work, packages)
-        return
-    if len(links) != DLC_COUNT or len(set(links)) != DLC_COUNT:
-        raise SystemExit(f"DLC_URL needs one archive link or {DLC_COUNT} distinct NSP links, one per line.")
+        return stage("DLC", work, packages)
+    if len(links) not in DLC_COUNTS or len(set(links)) != len(links):
+        raise SystemExit("DLC_URL needs one archive link or 6 or 12 distinct NSP links, one per line.")
 
     for number, url in enumerate(links, start=1):
         label = f"DLC line {number}"
@@ -71,7 +72,8 @@ def stage_dlc(work, packages):
         with target.open("rb") as stream:
             if stream.read(4) != b"PFS0":
                 raise SystemExit(f"{label} is not an NSP file. Check its direct download link.")
-    print(f"Staged {DLC_COUNT} individual DLC packages. DLC-N.nsp maps to link N.")
+    print(f"Staged {len(links)} individual DLC packages. DLC-N.nsp maps to link N.")
+    return len(links)
 
 
 def verify(engine, work):
@@ -82,7 +84,7 @@ def verify(engine, work):
     keys.chmod(0o600)
     for label in ("GAME", "UPDATE"):
         stage(label, work, packages)
-    stage_dlc(work, packages)
+    dlc_count = stage_dlc(work, packages)
 
     sys.path.insert(0, str(engine / "scripts"))
     import build_ipa_from_nsp as builder
@@ -94,12 +96,12 @@ def verify(engine, work):
     with builder.package_reader(engine, keys, env) as reader:
         _, family = builder.scan_nsps(packages, reader.contents, TITLE)
         reader.check_keys(family)
-    if (len(family["updates"]) != 1 or len(family["dlc"]) != DLC_COUNT
-            or len({tid for tid, _, _ in family["dlc"]}) != DLC_COUNT
+    if (len(family["updates"]) != 1 or len(family["dlc"]) != dlc_count
+            or len({tid for tid, _, _ in family["dlc"]}) != dlc_count
             or not family["base"].name.startswith("GAME-")
             or not family["updates"][0][1].name.startswith("UPDATE-")
-            or any(not path.name.startswith("DLC-") for _, _, path in family["dlc"])):
-        raise SystemExit("Expected one Dragon Ball base, one update, and 12 distinct DLC titles in their respective inputs.")
+            or {path for _, _, path in family["dlc"]} != set(packages.glob("DLC-*"))):
+        raise SystemExit(f"Expected one Dragon Ball base, one update, and {dlc_count} distinct DLC titles, one per DLC file.")
 
     with TemporaryDirectory(dir=work) as temp:
         validation = Path(temp)
@@ -113,7 +115,7 @@ def verify(engine, work):
         display = nacp.display_version(manifest / "control.nacp")
         if display != "2.0.74":
             raise SystemExit(f"Expected update 2.0.74, got {display or 'no display version'} (CNMT v{version}).")
-    print(f"Verified game {TITLE:016X}, update {display} (CNMT v{version}), and 12 distinct DLC titles.")
+    print(f"Verified game {TITLE:016X}, update {display} (CNMT v{version}), and {dlc_count} distinct DLC titles.")
 
 
 if __name__ == "__main__":
