@@ -51,6 +51,7 @@ jobs:
           cat > "$RUNNER_TEMP/dragon-ball-touch/game_profile.h" <<'EOF'
           #define DM_GAME_ID "010035F022078000"
           #define DM_GAME_PAD_LAYOUT 1
+          #define DM_GAME_MEM_ALIAS 0x10000000ull
           EOF
           xcrun --sdk iphoneos clang -target arm64-apple-ios18.0 \
             -isysroot "$(xcrun --sdk iphoneos --show-sdk-path)" \
