@@ -1,0 +1,15 @@
+{
+  "name": "dragon-ball-activation",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-11-28",
+  "keep_vars": true,
+  "workers_dev": true,
+  "preview_urls": false,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "dragon-ball-activation",
+      "database_id": "5b29974e-ee05-4c7d-8723-5c2fd51d61a6"
+    }
+  ]
+}
