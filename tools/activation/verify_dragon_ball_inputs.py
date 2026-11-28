@@ -9,16 +9,18 @@ from tempfile import TemporaryDirectory
 from urllib.parse import urlsplit
 
 TITLE = 0x010035F022078000
+DLC_COUNT = 12
 EXTENSIONS = {".nsp", ".nsz", ".xci", ".xcz"}
 
 
-def download(label, target):
-    url = os.environ.get(f"{label}_URL", "").strip()
+def download(label, target, url=None):
+    if url is None:
+        url = os.environ.get(f"{label}_URL", "").strip()
     if urlsplit(url).scheme != "https" or not urlsplit(url).hostname:
-        raise SystemExit(f"{label}_URL must contain an HTTPS download URL")
+        raise SystemExit(f"{label} must use an HTTPS download URL")
     result = subprocess.run(
         ["curl", "--location", "--fail", "--silent", "--retry", "3",
-         "--proto", "=https", "--output", str(target), "--url", url],
+         "--proto", "=https", "--proto-redir", "=https", "--output", str(target), "--url", url],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
     if result.returncode or not target.is_file() or not target.stat().st_size:
@@ -49,9 +51,27 @@ def stage(label, work, packages):
         wanted = [source]
     else:
         raise SystemExit(f"{label} is not a supported package or archive. Use a file download URL, not a share page.")
-    expected = 12 if label == "DLC" else 1
+    expected = DLC_COUNT if label == "DLC" else 1
     if len(wanted) != expected:
         raise SystemExit(f"{label}: expected {expected} package(s), got {len(wanted)}")
+
+
+def stage_dlc(work, packages):
+    links = [line.strip() for line in os.environ.get("DLC_URL", "").splitlines() if line.strip()]
+    if len(links) <= 1:
+        stage("DLC", work, packages)
+        return
+    if len(links) != DLC_COUNT or len(set(links)) != DLC_COUNT:
+        raise SystemExit(f"DLC_URL needs one archive link or {DLC_COUNT} distinct NSP links, one per line.")
+
+    for number, url in enumerate(links, start=1):
+        label = f"DLC line {number}"
+        target = packages / f"DLC-{number}.nsp"
+        download(label, target, url)
+        with target.open("rb") as stream:
+            if stream.read(4) != b"PFS0":
+                raise SystemExit(f"{label} is not an NSP file. Check its direct download link.")
+    print(f"Staged {DLC_COUNT} individual DLC packages. DLC-N.nsp maps to link N.")
 
 
 def verify(engine, work):
@@ -60,8 +80,9 @@ def verify(engine, work):
     keys = work / "prod.keys"
     download("KEYS", keys)
     keys.chmod(0o600)
-    for label in ("GAME", "UPDATE", "DLC"):
+    for label in ("GAME", "UPDATE"):
         stage(label, work, packages)
+    stage_dlc(work, packages)
 
     sys.path.insert(0, str(engine / "scripts"))
     import build_ipa_from_nsp as builder
@@ -73,8 +94,8 @@ def verify(engine, work):
     with builder.package_reader(engine, keys, env) as reader:
         _, family = builder.scan_nsps(packages, reader.contents, TITLE)
         reader.check_keys(family)
-    if (len(family["updates"]) != 1 or len(family["dlc"]) != 12
-            or len({tid for tid, _, _ in family["dlc"]}) != 12
+    if (len(family["updates"]) != 1 or len(family["dlc"]) != DLC_COUNT
+            or len({tid for tid, _, _ in family["dlc"]}) != DLC_COUNT
             or not family["base"].name.startswith("GAME-")
             or not family["updates"][0][1].name.startswith("UPDATE-")
             or any(not path.name.startswith("DLC-") for _, _, path in family["dlc"])):
