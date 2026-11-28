@@ -27,6 +27,8 @@
     _code.autocorrectionType = UITextAutocorrectionTypeNo;
     _code.spellCheckingType = UITextSpellCheckingTypeNo;
     _code.secureTextEntry = YES;
+    _code.returnKeyType = UIReturnKeyGo;
+    [_code addTarget:self action:@selector(submit) forControlEvents:UIControlEventEditingDidEndOnExit];
     _code.hidden = YES;
 
     _submit = [UIButton buttonWithType:UIButtonTypeSystem];
@@ -79,6 +81,7 @@
 }
 
 - (void)submit {
+    [self.view endEditing:YES];
     NSString *code = _code.hidden ? nil : [[_code.text stringByTrimmingCharactersInSet:
         NSCharacterSet.whitespaceAndNewlineCharacterSet] lowercaseString];
     if (code && (code.length != 36 || [code rangeOfCharacterFromSet:
@@ -86,7 +89,6 @@
         _status.text = @"Enter the 36-character activation code.";
         return;
     }
-    [self.view endEditing:YES];
     _installation = _installation ?: [self loadInstallation];
     if (!_installation) {
         _status.text = @"Could not load this installation’s activation data. Try again.";
