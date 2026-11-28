@@ -7,6 +7,8 @@ on:
       - '.github/workflows/dragon-ball-preflight.yml'
       - 'tools/activation/DragonBallActivation.h'
       - 'tools/activation/apply_ios_gate.py'
+      - 'tools/activation/apply_ios_preferences.py'
+      - 'tools/activation/combat-touch-icons.patch'
 
 permissions:
   contents: read
@@ -44,6 +46,18 @@ jobs:
             -isysroot "$(xcrun --sdk iphoneos --show-sdk-path)" \
             -fobjc-arc -fsyntax-only -x objective-c \
             -include UIKit/UIKit.h engine/dm/ios/Sources/DragonBallActivation.h
+          python3 activation-integration/tools/activation/apply_ios_preferences.py engine
+          python3 engine/dm/games/settings.py 010035F022078000 "$RUNNER_TEMP" "$RUNNER_TEMP/no-control.nacp" "$RUNNER_TEMP/dragon-ball-launcher.json"
+          python3 - "$RUNNER_TEMP/dragon-ball-launcher.json" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1]) as source:
+              settings = json.load(source)["settings"]
+          fps = next(row for row in settings if row["env"] == "DM_FPS_TARGET")
+          assert fps["default"] == "30", fps
+          assert {"30", "60"} <= {value for value, _ in fps["options"]}, fps
+          PY
           git -C engine diff --check
 
       - name: Verify Dragon Ball profile and rendering prerequisites

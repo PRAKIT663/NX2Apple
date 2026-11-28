@@ -47,6 +47,8 @@ jobs:
           df -h
       - name: Apply activation gate
         run: python integration/tools/activation/apply_ios_gate.py engine
+      - name: Apply Dragon Ball touch controls and launcher defaults
+        run: python integration/tools/activation/apply_ios_preferences.py engine
       - name: Download files and verify game metadata
         env:
           GAME_URL: ${{ secrets.game_url }}
