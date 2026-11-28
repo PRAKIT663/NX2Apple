@@ -67,6 +67,27 @@ jobs:
         if: github.ref == 'refs/heads/experiment/demon-slayer-2'
         run: python3 .activation-integration/tools/activation/apply_ios_gate.py .
 
+      - name: Apply and check Demon Slayer 2 touch controls
+        if: github.ref == 'refs/heads/experiment/demon-slayer-2'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git apply --check .activation-integration/tools/activation/combat-touch-icons.patch
+          git apply .activation-integration/tools/activation/combat-touch-icons.patch
+          mkdir -p "$RUNNER_TEMP/demon-slayer-touch"
+          cat > "$RUNNER_TEMP/demon-slayer-touch/game_profile.h" <<'EOF'
+          #define DM_GAME_ID "0100AD80208A8000"
+          #define DM_GAME_PAD_LAYOUT 1
+          #define DM_GAME_MEM_ALIAS 0x10000000ull
+          EOF
+          sdk="$(xcrun --sdk iphoneos --show-sdk-path)"
+          xcrun --sdk iphoneos clang -target arm64-apple-ios18.0 -isysroot "$sdk" \
+            -fobjc-arc -fsyntax-only -I dm/host -I "$RUNNER_TEMP/demon-slayer-touch" \
+            dm/ios/Sources/DmGamepad.m
+          xcrun --sdk iphoneos clang -target arm64-apple-ios18.0 -isysroot "$sdk" \
+            -fobjc-arc -fsyntax-only -x objective-c -include UIKit/UIKit.h \
+            dm/ios/Sources/DemonSlayerActivation.h
+
       - name: Checkout pinned Demon Slayer 2 profile
         if: github.ref == 'refs/heads/experiment/demon-slayer-2'
         uses: actions/checkout@v4
