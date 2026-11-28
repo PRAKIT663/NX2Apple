@@ -3,6 +3,10 @@ name: NxNative - Generic IPA Builder
 on:
   workflow_dispatch:
     inputs:
+      dragon_ball_validate_only:
+        description: "Dragon Ball branch only: validate game files without building an IPA"
+        type: boolean
+        default: true
       device:
         description: "Choose the target device and texture support path"
         required: true
@@ -21,7 +25,19 @@ permissions:
   contents: read
 
 jobs:
+  dragon-ball:
+    if: github.ref == 'refs/heads/experiment/dragon-ball-iphone'
+    uses: ./.github/workflows/dragon-ball-ipa.yml
+    with:
+      validate_only: ${{ inputs.dragon_ball_validate_only }}
+    secrets:
+      game_url: ${{ secrets.DRAGON_BALL_GAME_URL }}
+      update_url: ${{ secrets.DRAGON_BALL_UPDATE_URL }}
+      dlc_url: ${{ secrets.DRAGON_BALL_DLC_URL }}
+      keys_url: ${{ secrets.DRAGON_BALL_KEYS_URL }}
+
   build:
+    if: github.ref != 'refs/heads/experiment/dragon-ball-iphone'
     runs-on: xcode-27
     timeout-minutes: 360
 

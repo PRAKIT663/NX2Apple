@@ -3,7 +3,10 @@ name: Dragon Ball iPhone preflight
 on:
   push:
     branches: [experiment/dragon-ball-iphone]
-    paths: ['.github/workflows/dragon-ball-preflight.yml']
+    paths:
+      - '.github/workflows/dragon-ball-preflight.yml'
+      - 'tools/activation/DragonBallActivation.h'
+      - 'tools/activation/apply_ios_gate.py'
 
 permissions:
   contents: read
@@ -17,14 +20,34 @@ jobs:
       DM_GAME: '010035F022078000'
       DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
     steps:
+      - name: Checkout activation integration
+        uses: actions/checkout@v4
+        with:
+          path: activation-integration
+          persist-credentials: false
+          sparse-checkout: tools/activation
+
       - name: Checkout pinned BC fallback engine
         uses: actions/checkout@v4
         with:
           repository: mianmuhammadse/nxnative-nobc
           ref: 634829096267587aed7a578cdcc2ea72ed77ecd8
+          path: engine
           persist-credentials: false
 
+      - name: Check the activation gate with the iOS SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 activation-integration/tools/activation/apply_ios_gate.py engine
+          xcrun --sdk iphoneos clang -target arm64-apple-ios17.0 \
+            -isysroot "$(xcrun --sdk iphoneos --show-sdk-path)" \
+            -fobjc-arc -fsyntax-only -x objective-c \
+            -include UIKit/UIKit.h engine/dm/ios/Sources/DragonBallActivation.h
+          git -C engine diff --check
+
       - name: Verify Dragon Ball profile and rendering prerequisites
+        working-directory: engine
         shell: bash
         run: |
           set -euo pipefail

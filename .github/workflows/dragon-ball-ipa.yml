@@ -1,0 +1,69 @@
+name: Dragon Ball iPhone IPA
+
+on:
+  workflow_call:
+    inputs:
+      validate_only:
+        type: boolean
+        required: true
+    secrets:
+      game_url:
+        required: true
+      update_url:
+        required: true
+      dlc_url:
+        required: true
+      keys_url:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 360
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: integration
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: mianmuhammadse/nxnative-nobc
+          ref: 634829096267587aed7a578cdcc2ea72ed77ecd8
+          path: engine
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install build dependencies
+        run: |
+          brew install xcodegen zstd unar
+          python -m pip install lz4 'capstone>=5,<6' fonttools backports.zstd zbic nsz
+          df -h
+      - name: Apply activation gate
+        run: python integration/tools/activation/apply_ios_gate.py engine
+      - name: Download files and verify game metadata
+        env:
+          GAME_URL: ${{ secrets.game_url }}
+          UPDATE_URL: ${{ secrets.update_url }}
+          DLC_URL: ${{ secrets.dlc_url }}
+          KEYS_URL: ${{ secrets.keys_url }}
+        run: python integration/tools/activation/verify_dragon_ball_inputs.py engine "$RUNNER_TEMP/dragon-ball"
+      - name: Build unsigned IPA
+        if: ${{ !inputs.validate_only }}
+        working-directory: engine
+        run: |
+          python scripts/build_ipa_from_nsp.py "$RUNNER_TEMP/dragon-ball/packages" \
+            --title-id 010035F022078000 -k "$RUNNER_TEMP/dragon-ball/prod.keys" \
+            -o "$RUNNER_TEMP/DragonBall.ipa"
+          test -s "$RUNNER_TEMP/DragonBall.ipa"
+      - uses: actions/upload-artifact@v4
+        if: ${{ !inputs.validate_only }}
+        with:
+          name: DragonBall-iPhone-Activation-Test
+          path: ${{ runner.temp }}/DragonBall.ipa
+          if-no-files-found: error
