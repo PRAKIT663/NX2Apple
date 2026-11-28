@@ -47,6 +47,15 @@ jobs:
             -fobjc-arc -fsyntax-only -x objective-c \
             -include UIKit/UIKit.h engine/dm/ios/Sources/DragonBallActivation.h
           python3 activation-integration/tools/activation/apply_ios_preferences.py engine
+          mkdir -p "$RUNNER_TEMP/dragon-ball-touch"
+          cat > "$RUNNER_TEMP/dragon-ball-touch/game_profile.h" <<'EOF'
+          #define DM_GAME_ID "010035F022078000"
+          #define DM_GAME_PAD_LAYOUT 1
+          EOF
+          xcrun --sdk iphoneos clang -target arm64-apple-ios18.0 \
+            -isysroot "$(xcrun --sdk iphoneos --show-sdk-path)" \
+            -fobjc-arc -fsyntax-only -I engine/dm/host -I "$RUNNER_TEMP/dragon-ball-touch" \
+            engine/dm/ios/Sources/DmGamepad.m
           python3 engine/dm/games/settings.py 010035F022078000 "$RUNNER_TEMP" "$RUNNER_TEMP/no-control.nacp" "$RUNNER_TEMP/dragon-ball-launcher.json"
           python3 - "$RUNNER_TEMP/dragon-ball-launcher.json" <<'PY'
           import json
