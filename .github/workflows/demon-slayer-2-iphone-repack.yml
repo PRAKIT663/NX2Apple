@@ -1,0 +1,43 @@
+name: Demon Slayer 2 iPhone shader repack
+
+on:
+  push:
+    branches: [experiment/demon-slayer-2]
+    paths: ['.github/workflows/demon-slayer-2-iphone-repack.yml', 'tools/ios_shader_repack/**']
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  repack:
+    runs-on: xcode-27
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Download successful Build 62 IPA
+        uses: actions/download-artifact@v4
+        with:
+          name: NxNative-IPA-BC-Fallback
+          run-id: '46028958785'
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/ds2-ipa
+      - name: Separate shader files and omit bundled RomFS
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/ds2-ipa"
+          python "$GITHUB_WORKSPACE/tools/ios_shader_repack/split_shaders.py" --separate-romfs NxNative.ipa
+          mv NxNative-ShaderFiles.ipa DemonSlayer2-Slim-ShaderFiles.ipa
+          python -m zipfile -t DemonSlayer2-Slim-ShaderFiles.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DemonSlayer2-Slim-ShaderFiles
+          path: ${{ runner.temp }}/ds2-ipa/DemonSlayer2-Slim-ShaderFiles.ipa
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
