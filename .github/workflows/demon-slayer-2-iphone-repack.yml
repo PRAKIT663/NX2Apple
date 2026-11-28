@@ -12,7 +12,9 @@ permissions:
 jobs:
   repack:
     runs-on: xcode-27
-    timeout-minutes: 45
+    timeout-minutes: 240
+    env:
+      SOURCE_RUN_ID: '46149237912'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -20,11 +22,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Download successful Build 62 IPA
+      - name: Wait for the activation and controls IPA
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run watch "$SOURCE_RUN_ID" --repo "$GITHUB_REPOSITORY" --interval 30 --exit-status
+      - name: Download the successful IPA
         uses: actions/download-artifact@v4
         with:
           name: NxNative-IPA-BC-Fallback
-          run-id: '46028958785'
+          run-id: ${{ env.SOURCE_RUN_ID }}
           github-token: ${{ github.token }}
           path: ${{ runner.temp }}/ds2-ipa
       - name: Separate shader files and omit bundled RomFS
@@ -34,10 +40,31 @@ jobs:
           python "$GITHUB_WORKSPACE/tools/ios_shader_repack/split_shaders.py" --separate-romfs NxNative.ipa
           mv NxNative-ShaderFiles.ipa DemonSlayer2-Slim-ShaderFiles.ipa
           python -m zipfile -t DemonSlayer2-Slim-ShaderFiles.ipa
+          python - <<'PYROMFS'
+          import re
+          import shutil
+          import zipfile
+
+          with zipfile.ZipFile("NxNative.ipa") as ipa:
+              members = [m for m in ipa.infolist()
+                         if re.fullmatch(r"Payload/[^/]+[.]app/romfs[.]img", m.filename, re.I)]
+              if len(members) != 1 or not members[0].file_size:
+                  raise SystemExit("Expected one nonempty RomFS image")
+              with ipa.open(members[0]) as source, open("romfs.img", "xb") as output:
+                  shutil.copyfileobj(source, output, 1024 * 1024)
+          PYROMFS
+          ls -lh DemonSlayer2-Slim-ShaderFiles.ipa romfs.img
       - uses: actions/upload-artifact@v4
         with:
           name: DemonSlayer2-Slim-ShaderFiles
           path: ${{ runner.temp }}/ds2-ipa/DemonSlayer2-Slim-ShaderFiles.ipa
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DemonSlayer2-RomFS
+          path: ${{ runner.temp }}/ds2-ipa/romfs.img
           compression-level: 0
           if-no-files-found: error
           retention-days: 7
